@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Jira Weekly Performance Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--cd:#fff;--tx:#18202f;--mu:#667088;--bd:#e2e7f0;--pr:#2f5bea;--ok:#12a150;--wn:#d98a06;--bn:#dc3545;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1420;--cd:#171e2e;--tx:#e8ecf5;--mu:#9aa5bd;--bd:#27314a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1420;--cd:#171e2e;--tx:#e8ecf5;--mu:#9aa5bd;--bd:#27314a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 22px;background:var(--cd);border-bottom:1px solid var(--bd)}
+h1{font-size:19px;margin:0}h3{font-size:14px;margin:0 0 10px}.mu{color:var(--mu);font-size:12px}
+.btn{background:var(--pr);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}.btn.g{background:transparent;color:var(--pr);border:1px solid var(--bd)}
+main,.wrap{padding:16px 22px;max-width:1500px;margin:0 auto}
+.drop{margin:60px auto;max-width:620px;text-align:center;padding:48px 24px;border:2px dashed var(--bd);border-radius:16px;background:var(--cd)}.drop.on{border-color:var(--pr)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;padding:12px 22px;background:var(--cd);border-bottom:1px solid var(--bd)}
+label{display:flex;flex-direction:column;font-size:11px;color:var(--mu);gap:3px}select,input{font:inherit;padding:6px 8px;border:1px solid var(--bd);border-radius:7px;background:var(--bg);color:var(--tx);max-width:150px}
+#tabs{display:flex;gap:4px;overflow-x:auto;padding:10px 22px 0;background:var(--cd);border-bottom:1px solid var(--bd)}
+#tabs button{border:0;background:none;color:var(--mu);padding:9px 13px;font:inherit;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}#tabs button.on{color:var(--pr);border-color:var(--pr);font-weight:600}
+.kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px}
+.kpi,.card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(20,30,60,.06)}
+.kpi{border-left:4px solid var(--pr)}.kpi.ok{border-left-color:var(--ok)}.kpi.warn{border-left-color:var(--wn)}.kpi.bad{border-left-color:var(--bn)}.kpi.na{border-left-color:var(--bd);opacity:.85}
+.kl{font-size:12px;color:var(--mu)}.kv{font-size:26px;font-weight:700}.ks{font-size:12px}.kd{font-size:11px;color:var(--mu);margin-top:4px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}.card{margin-bottom:14px}.g2 .card{margin:0}
+@media(max-width:850px){.g2{grid-template-columns:1fr}}
+.cc{position:relative}.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{padding:7px 9px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}th{color:var(--mu);font-weight:600;cursor:default}td.w{white-space:normal;min-width:220px}
+tbody tr.cl{cursor:pointer}tbody tr:hover{background:var(--bg)}
+.b{padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}.ins div{padding:6px 0;border-bottom:1px solid var(--bd)}.tag{display:inline-block;min-width:104px;margin-right:8px;font-size:11px;font-weight:700;color:var(--pr)}.tag.Recommendation{color:var(--ok)}.tag.Interpretation{color:var(--wn)}
+.note{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}.err{color:var(--bn)}
+#mod{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9}#mod .card{max-width:760px;width:94%;max-height:86vh;overflow:auto}
+.pg{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+@media print{.noprint,#tabs,.bar,header button{display:none!important}}
+</style></head><body>
+<header><div><h1>📊 Jira Weekly Performance Dashboard</h1><div class="mu" id="sub">Upload your Jira Service Management CSV export to build this week’s report automatically.</div></div>
+<div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn g" id="ldb" style="display:none">⬇ Cleaned CSV</button><button class="btn g" id="isb" style="display:none">⬇ Data-quality issues CSV</button><button class="btn" id="upb">Upload CSV</button></div>
+<input type="file" id="fi" accept=".csv,text/csv" hidden></header>
+<div id="err" class="wrap err"></div>
+<div id="land"><div class="drop" id="dz"><div style="font-size:40px">📥</div><h2>Drop your Jira CSV here</h2><p class="mu">Or choose a file. Everything is processed in your browser; nothing is uploaded to a server. Each week, upload the new export and every KPI, chart and report refreshes. Excel files: save as CSV first.</p><button class="btn" onclick="fi.click()">Choose CSV file</button></div></div>
+<div id="app" style="display:none">
+<div class="bar noprint" id="ctl"><label>Week starts on<select id="ws"><option value="1">Monday</option><option value="0">Sunday</option></select></label><label>Report as-of date<input type="date" id="asof"></label><label>“At Risk” if ≤ hours left<input type="number" id="thr" value="4" min="0" style="width:90px"></label><span class="mu" id="fmeta"></span></div>
+<div class="bar noprint" id="flt"></div><div id="tabs"></div><main id="main"></main></div>
+<div id="mod"><div class="card" id="mc"></div></div>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MN=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],MS=MN.map(m=>m[0].toUpperCase()+m.slice(1));
+const PAL=['#2f5bea','#12a150','#e59a0b','#dc3545','#8b5cf6','#0ea5b7','#f97316','#64748b','#ec4899','#84cc16'];
+const SC={Achieved:'#12a150','On Track':'#2f5bea','At Risk':'#e59a0b',Breached:'#dc3545','Not Applicable':'#94a3b8',Unknown:'#cbd5e1'};
+const CL={done:'Resolved / Closed',open:'Open / New',prog:'In Progress',pend:'Pending',reopen:'Reopened',cancel:'Cancelled'},CC={done:'#12a150',open:'#2f5bea',prog:'#8b5cf6',pend:'#e59a0b',reopen:'#dc3545',cancel:'#94a3b8'};
+const FIELDS=[['key','Issue key',/^issue key$|^key$/i],['summary','Summary',/^summary$|^title$/i],['assignee','Assignee',/^assignee$/i],['dev','Developer',/developer/i],['req','Requester / User',/username|^reporter$|^creator$|requester|raised by/i],['status','Status',/^status$/i],['created','Created',/^created/i],['resolved','Resolved date',/^resolved|resolution date/i],['updated','Updated',/^updated/i],['pri','Priority',/^priority$/i],['type','Request type',/request type|^issue type$/i],['dept','Department',/department/i],['proj','Project',/^project( name)?$/i],['sla','SLA / Time to resolution',/time to resolution|^sla(?!.*breach)/i],['breach','SLA breached flag',/breach/i],['due','Due date',/^due/i]];
+const FD=[['dev','Developer'],['dept','Department'],['proj','Project'],['status','Status'],['pri','Priority'],['type','Request type'],['req','Requester']];
+const TABS=[['ov','Executive Overview'],['dv','Developers'],['sl','SLA'],['lc','Ticket Lifecycle'],['us','Requesters'],['pr','Priority & Type'],['wk','Weekly Report'],['dq','Data Quality'],['tk','Tickets']];
+let RAW=[],HEAD=[],MAP={},T=[],FN='',CH=[],TAB='ov',SM='none',ANCH=new Date(0),DQ={},DVS='res',WKS='cur',WKC={a:'',b:''},TQ='',TS='created',TD=-1,TP=0,R={};
+const M=h=>{$('#main').innerHTML=h},err=m=>{$('#err').textContent=m||''};
+const pct=(a,b)=>b?Math.round(a/b*1000)/10:null,f1=v=>v==null?'—':v+'%',isBl=t=>['open','prog','pend','reopen'].includes(t.cat),HP=/^(highest|high|critical|blocker)$/i;
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),fd=d=>d.getDate()+' '+MS[d.getMonth()],fdt=d=>d?fd(d)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'):'—';
+const fh=h=>isNaN(h)?'—':(h<0?'-':'')+Math.floor(Math.abs(h))+':'+String(Math.round(Math.abs(h)%1*60)).padStart(2,'0');
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+const gv=(r,f)=>MAP[f]&&r[MAP[f]]!=null?String(r[MAP[f]]):'';
+function pd(s){s=String(s||'').trim();if(!s)return null;let m=s.match(/^(\d{1,2})[\/\- ]([A-Za-z]{3})[a-z]*[\/\- ](\d{2,4})(?:[ ,T]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?)?/i);
+ if(m){const mo=MN.indexOf(m[2].toLowerCase());if(mo<0)return null;let y=+m[3];if(y<100)y+=2000;let h=+(m[4]||0);if(m[6]){const p=m[6].toUpperCase();if(p==='PM'&&h<12)h+=12;if(p==='AM'&&h===12)h=0}return new Date(y,mo,+m[1],h,+(m[5]||0))}
+ m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ ,]+(\d{1,2}):(\d{2}))?/);if(m)return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0));
+ const d=new Date(s);return isNaN(d)?null:d}
+const ps=s=>{const m=String(s||'').trim().match(/^(-)?\s*(\d+):(\d{2})$/);return m?(m[1]?-1:1)*(+m[2]+m[3]/60):NaN};
+function cat(s){s=s.toLowerCase();return /reopen/.test(s)?'reopen':/cancel|declin|reject|won.?t/.test(s)?'cancel':/resolved|complete|closed|done|fixed/.test(s)?'done':/pending|waiting|hold|blocked/.test(s)?'pend':/progress|working|review|testing|develop/.test(s)?'prog':'open'}
+function ws(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()-(+$('#ws').value)+7)%7));return x}
+function wr(o){const s=ws(ANCH);s.setDate(s.getDate()+7*o);const e=new Date(s);e.setDate(e.getDate()+7);return[s,e]}
+const inr=(L,[s,e])=>L.filter(t=>t.created&&t.created>=s&&t.created<e);
+const grp=(L,fn)=>{const m=new Map();L.forEach(t=>{const k=fn(t);if(!m.has(k))m.set(k,[]);m.get(k).push(t)});return m};
+function sl(L){const c=k=>L.filter(t=>t.sla===k).length,met=c('Achieved'),br=c('Breached'),ar=c('At Risk'),ot=c('On Track'),el=met+br+ar+ot;return{met,br,ar,ot,unk:c('Unknown'),na:c('Not Applicable'),el,rate:pct(met,el),brr:pct(br,el),rd:pct(met,met+br)}}
+
+/* ---------- upload ---------- */
+function load(file){err('');if(!file)return;if(!/\.csv$/i.test(file.name)&&!/csv|text/.test(file.type)){err('Please upload a .csv file (Excel: File → Save As → CSV).');return}
+ Papa.parse(file,{header:true,skipEmptyLines:'greedy',complete:r=>{if(!r.data.length||!r.meta.fields||r.meta.fields.length<2){err('The file has no readable rows or header. Check it is a Jira CSV export.');return}
+  RAW=r.data;HEAD=r.meta.fields;FN=file.name;MAP={};FIELDS.forEach(([k,,re])=>{const h=HEAD.find(x=>re.test(x.trim()));if(h)MAP[k]=h});
+  if(!MAP.created){err('No “Created” column found – it is required for weekly reporting. Please include it in the Jira export.');}
+  $('#land').style.display='none';$('#app').style.display='';['ldb','isb'].forEach(i=>$('#'+i).style.display='');$('#asof').value=iso(new Date());buildAll()},
+  error:e=>err('Could not read the file: '+e.message)})}
+function buildAll(){try{build();fillFilters();tabs();render()}catch(e){err('Processing error: '+e.message)}}
+function build(){
+ const has=f=>!!MAP[f],kc={};RAW.forEach(r=>{const k=gv(r,'key').trim();kc[k]=(kc[k]||0)+1});
+ T=RAW.map((r,i)=>{const t={i,raw:r,iss:[]},C=f=>gv(r,f).replace(/\s+/g,' ').trim(),add=(f,sev,msg)=>t.iss.push({f:MAP[f]||f,sev,msg,val:gv(r,f)});
+  ['key','summary','assignee','dev','req','status','pri','type','dept','proj'].forEach(f=>{if(has(f)){const v=gv(r,f);if(v&&v!==C(f))add(f,'warn','Extra spaces / line break (trimmed in cleaned data)')}});
+  t.key=C('key');t.summary=C('summary');t.assignee=C('assignee');t.devraw=C('dev');t.dev=t.devraw||t.assignee||'Unassigned';t.reqraw=C('req');
+  t.status=C('status')||'(Not set)';t.pri=C('pri')||'(Not set)';t.type=C('type')||'(Not set)';t.dept=C('dept')||'(Not set)';t.proj=C('proj')||(t.key.includes('-')?t.key.split('-')[0]:'(Not set)');
+  const cr=gv(r,'created');t.created=pd(cr);t.resolved=has('resolved')?pd(gv(r,'resolved')):null;t.cat=cat(t.status);
+  if(has('key')){if(!t.key)add('key','err','Missing issue key');else if(kc[gv(r,'key').trim()]>1)add('key','err','Duplicate issue key')}
+  if(has('summary')&&!t.summary)add('summary','err','Empty summary');
+  if(has('assignee')&&!t.assignee)add('assignee','warn','Missing assignee');
+  if(has('dev')&&!t.devraw)add('dev','warn','Missing developer'+(t.assignee?' – assignee used as fallback':''));
+  if(has('req')&&!t.reqraw)add('req','warn','Missing requester / user');
+  if(has('status')&&!C('status'))add('status','err','Missing status');
+  [['pri','priority'],['type','request type'],['dept','department']].forEach(([f,n])=>{if(has(f)&&!C(f))add(f,'warn','Missing '+n)});
+  if(has('created')){if(!cr.trim())add('created','err','Missing created date');else if(!t.created)add('created','err','Invalid date format')}
+  if(has('resolved')&&t.cat==='done'&&!t.resolved)add('resolved','warn','Resolved ticket without resolution date');
+  const sr=gv(r,'sla').trim();t.slaRaw=sr;t.slaH=sr?ps(sr):NaN;
+  if(has('sla')){if(!sr)add('sla','warn','Missing SLA value');else if(isNaN(t.slaH))add('sla','err','Invalid SLA value (expected hh:mm)')}
+  t.br=has('breach')?/^(y|yes|true|1|breach)/i.test(gv(r,'breach').trim()):null;return t});
+ const nk=n=>n.toLowerCase().replace(/[^a-z0-9]/g,''),nm={};T.forEach(t=>{if(t.reqraw){const n=nk(t.reqraw);nm[n]=nm[n]||{};nm[n][t.reqraw]=(nm[n][t.reqraw]||0)+1}});
+ const cn={};for(const n in nm)cn[n]=Object.entries(nm[n]).sort((a,b)=>b[1]-a[1])[0][0];
+ T.forEach(t=>{t.req=t.reqraw?cn[nk(t.reqraw)]:'(Not set)'});
+ const ft={};T.forEach(t=>{if(t.reqraw){const k=t.req.split(' ')[0].toLowerCase();(ft[k]=ft[k]||new Set()).add(t.req)}});
+ T.forEach(t=>{if(!t.reqraw)return;const add=(msg)=>t.iss.push({f:MAP.req,sev:'warn',msg,val:t.reqraw});if(t.reqraw!==t.req)add(`Spelling variant of “${t.req}” (merged in analytics)`);const s=ft[t.req.split(' ')[0].toLowerCase()];if(s&&s.size>1)add('Possible same person under different names: '+[...s].join(' / ')+' (not merged)')});
+ ANCH=T.reduce((m,t)=>t.created&&t.created>m?t.created:m,new Date(0));WKC={a:iso(wr(0)[0]),b:iso(ANCH)};
+ classify();
+ const nf=FIELDS.filter(f=>MAP[f[0]]).length,cells=T.reduce((s,t)=>s+new Set(t.iss.map(i=>i.f)).size,0),bad=T.filter(t=>t.iss.some(i=>i.sev==='err')).length;
+ DQ={total:T.length,invalid:bad,valid:T.length-bad,dup:T.filter(t=>t.iss.some(i=>i.msg==='Duplicate issue key')).length,score:T.length&&nf?Math.round(1000*(1-cells/(T.length*nf)))/10:null,iss:T.reduce((s,t)=>s+t.iss.length,0)};
+ $('#sub').textContent=`${FN} · ${RAW.length} records · ${HEAD.length} columns`;$('#fmeta').textContent=`Latest ticket: ${fdt(ANCH)} · “Current week” = week of latest ticket`}
+function classify(){const thr=+$('#thr').value||0,neg=T.some(t=>t.slaH<0);SM=!MAP.sla&&!MAP.breach?'none':MAP.sla&&neg?'remaining':'unknown';
+ T.forEach(t=>{const op=t.cat!=='done'&&t.cat!=='cancel';
+  t.sla=t.cat==='cancel'?'Not Applicable':MAP.breach?(t.br?'Breached':op?'On Track':'Achieved'):SM==='remaining'&&!isNaN(t.slaH)?(t.slaH<0?'Breached':op?(t.slaH<=thr?'At Risk':'On Track'):'Achieved'):'Unknown'})}
+
+/* ---------- filters / tabs ---------- */
+function fillFilters(){$('#flt').innerHTML=`<label>Created from<input type="date" id="ff"></label><label>Created to<input type="date" id="ft"></label>`+FD.map(([k,l])=>`<label>${l}<select id="f-${k}"><option value="">All</option>${[...new Set(T.map(t=>t[k]))].sort().map(v=>`<option>${esc(v)}</option>`).join('')}</select></label>`).join('')+`<button class="btn g" id="rs">Reset filters</button>`;
+ $$('#flt input,#flt select').forEach(e=>e.onchange=()=>{TP=0;render()});$('#rs').onclick=()=>{fillFilters();TP=0;render()}}
+function flt(){const g=id=>($('#'+id)||{}).value||'',a=g('ff'),b=g('ft'),A=a?new Date(a+'T00:00'):null,B=b?new Date(b+'T23:59:59'):null;
+ return T.filter(t=>(!A||t.created&&t.created>=A)&&(!B||t.created&&t.created<=B)&&FD.every(([k])=>!g('f-'+k)||t[k]===g('f-'+k)))}
+function tabs(){$('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-t="${k}" class="${k===TAB?'on':''}">${l}</button>`).join('');$$('#tabs button').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;$$('#tabs button').forEach(x=>x.classList.toggle('on',x===b));render()})}
+function render(){CH.forEach(c=>c.destroy());CH=[];if(!T.length)return;try{R[TAB](flt())}catch(e){M(`<div class="card err">Could not render this view: ${esc(e.message)}</div>`)}}
+
+/* ---------- ui helpers ---------- */
+function mk(id,type,labels,ds,o={}){const c=document.getElementById(id);if(!c)return;const cs=getComputedStyle(document.documentElement);Chart.defaults.color=cs.getPropertyValue('--mu').trim();Chart.defaults.borderColor=cs.getPropertyValue('--bd').trim();
+ const d=ds.map((x,i)=>Object.assign({backgroundColor:type==='doughnut'?(x.colors||PAL):PAL[i%PAL.length],borderColor:type==='line'?PAL[i%PAL.length]:'transparent',borderRadius:type==='bar'?4:0,tension:.3},x));
+ const op={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:ds.length>1||type==='doughnut',position:'bottom'}}};
+ if(type!=='doughnut'){const v={beginAtZero:true,max:o.max,stacked:!!o.stk,ticks:{precision:0}},k={stacked:!!o.stk,grid:{display:false}};op.indexAxis=o.h?'y':'x';op.scales=o.h?{x:v,y:k}:{x:k,y:v}}
+ Object.assign(op,o.x||{});CH.push(new Chart(c,{type,data:{labels,datasets:d},options:op}))}
+const card=(t,id,h=250,sp='')=>`<div class="card ${sp}"><h3>${t}</h3><div class="cc" style="height:${h}px"><canvas id="${id}"></canvas></div></div>`;
+const tb=(h,rows)=>`<div class="tw"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${h.length}" class="mu">No records</td></tr>`}</tbody></table></div>`;
+const bg=(t,c)=>`<span class="b" style="background:${c}22;color:${c}">${esc(t)}</span>`,sb=t=>bg(t.sla,SC[t.sla]);
+const kc=([l,v,s,d,c])=>`<div class="kpi ${c||''}"><div class="kl">${l}</div><div class="kv">${v}</div><div class="ks">${s||''}</div><div class="kd">${d||''}</div></div>`;
+const na=(l,why)=>[l,'N/A',why,'Not calculable from this export','na'];
+const dpc=(a,b)=>b?(a>b?'▲ ':a<b?'▼ ':'■ ')+Math.abs(Math.round((a-b)/b*100))+'% vs previous':(a?'No prior data':'—');
+const days=(s,e)=>{const o=[];for(let d=new Date(s);d<e;d.setDate(d.getDate()+1))o.push(new Date(d));return o};
+const weeks=L=>[...new Set(L.filter(t=>t.created).map(t=>+ws(t.created)))].sort((a,b)=>a-b);
+async function dl(name,rows){try{const d=await claude.use('downloads');if(!d){err('Downloads are not available in this view. Open the dashboard link in claude.ai.');return}await d.save({filename:name,data:'\ufeff'+Papa.unparse(rows)})}catch(e){if(e&&e.code!=='declined')err('Download failed: '+(e.message||e.code))}}
+const cleanRow=t=>{const o={};HEAD.forEach(h=>{const v=t.raw[h];o[h]=typeof v==='string'?v.replace(/\s+/g,' ').trim():v});return Object.assign(o,{Project_Final:t.proj,Developer_Final:t.dev,Requester_Clean:t.req,Status_Category:CL[t.cat],Created_Parsed:t.created?iso(t.created)+' '+String(t.created.getHours()).padStart(2,'0')+':'+String(t.created.getMinutes()).padStart(2,'0'):'',Week_Start:t.created?iso(ws(t.created)):'',SLA_Hours_Remaining:isNaN(t.slaH)?'':Math.round(t.slaH*100)/100,SLA_Status:t.sla,Data_Issues:t.iss.map(i=>i.msg).join(' | ')})};
+const issRows=L=>L.flatMap(t=>t.iss.map(i=>({Issue_key:t.key,Row_number:t.i+2,Field:i.f,Severity:i.sev==='err'?'Error':'Warning',Issue:i.msg,Original_value:i.val})));
+$('#ldb').onclick=()=>dl('jira_cleaned.csv',T.map(cleanRow));$('#isb').onclick=()=>dl('jira_data_quality_issues.csv',issRows(T));
+
+/* ---------- KPIs & insights ---------- */
+function kpis(L){const n=c=>L.filter(t=>t.cat===c).length,s=sl(L),bl=L.filter(isBl),cw=inr(L,wr(0)),pw=inr(L,wr(-1)),od=bl.filter(t=>t.sla==='Breached');
+ const dv=new Set(L.map(t=>t.dev).filter(x=>x!=='Unassigned')),rq=new Set(L.map(t=>t.req).filter(x=>x!=='(Not set)')),rt=L.filter(t=>t.resolved&&t.created&&t.cat==='done').map(t=>(t.resolved-t.created)/36e5),hasS=SM!=='none'&&SM!=='unknown'||MAP.breach;
+ const rr=pct(n('done'),L.length-n('cancel'));
+ return[['Total tickets',L.length,`${fd(wr(0)[0])} week: ${cw.length} created`,'Tickets matching current filters'],
+ ['Created this week',cw.length,dpc(cw.length,pw.length),'Week of the latest ticket vs the week before'],
+ ['Resolved / closed',n('done'),`${f1(rr)} of non-cancelled`,'By current status (no resolution date in export)','ok'],
+ ['Open tickets',n('open'),'','Status Open / New'],['Pending tickets',n('pend'),'','Waiting / on hold',n('pend')?'warn':''],['In progress',n('prog'),'','Being worked on'],
+ T.some(t=>t.cat==='reopen')?['Reopened',n('reopen'),'','Status Reopened',n('reopen')?'bad':'']:na('Reopened','Needs status history / changelog'),
+ ['Active developers',dv.size,'','Unique developers (custom field, else assignee)'],['Active requesters',rq.size,'','Unique people raising tickets'],
+ ['Resolution rate',f1(rr),'','Resolved ÷ tickets excluding cancelled',rr>=80?'ok':'warn'],
+ hasS?['SLA achievement',f1(s.rate),`Decided only: ${f1(s.rd)}`,'Met ÷ SLA-eligible tickets',s.rate>=90?'ok':s.rate>=70?'warn':'bad']:na('SLA achievement','SLA data unavailable'),
+ hasS?['SLA breached',s.br,`${f1(s.brr)} of eligible · ${dpc(inr(L,wr(0)).filter(t=>t.sla==='Breached').length,inr(L,wr(-1)).filter(t=>t.sla==='Breached').length)}`,'Past SLA target',s.br?'bad':'ok']:na('SLA breached','SLA data unavailable'),
+ rt.length?['Avg resolution time',Math.round(avg(rt)/24*10)/10+' d','','Created → resolved date']:na('Avg resolution time','Needs Resolved date'),
+ ['Overdue (open, past SLA)',od.length,'','Unresolved and already breached',od.length?'bad':'ok'],['Backlog',bl.length,`${pct(bl.length,L.length)??0}% of tickets`,'Open + pending + in progress'],
+ ['Data quality score',f1(DQ.score),`${DQ.invalid} invalid records`,'Share of checked cells without issues',DQ.score>=90?'ok':DQ.score>=75?'warn':'bad']]}
+function insights(L){const o=[],B=(a,t)=>o.push([a,t]),HPn=L.filter(t=>isBl(t)&&HP.test(t.pri)),od=L.filter(t=>isBl(t)&&t.sla==='Breached');
+ const bd=[...grp(L,t=>t.dev)].filter(([d])=>d!=='Unassigned').map(([d,x])=>({d,n:x.length,res:x.filter(t=>t.cat==='done').length,bl:x.filter(isBl).length,br:x.filter(t=>t.sla==='Breached').length}));
+ if(bd.length){const a=[...bd].sort((p,q)=>q.res-p.res)[0];B('Fact',`${a.d} has the most resolved/closed tickets: ${a.res} of ${a.n} assigned.`);
+  const b=[...bd].sort((p,q)=>q.bl-p.bl)[0];if(b.bl){B('Fact',`${b.d} holds the largest open backlog: ${b.bl} tickets (${pct(b.bl,L.filter(isBl).length)}% of all backlog).`);if(pct(b.bl,L.filter(isBl).length)>40)B('Recommendation',`Rebalance: consider redistributing some of ${b.d}’s open tickets.`)}
+  const c=[...bd].sort((p,q)=>q.br-p.br)[0];if(c.br)B('Fact',`SLA breaches are concentrated on ${c.d}: ${c.br} of ${c.n} tickets (${pct(c.br,c.n)}%).`);B('Interpretation','Ticket counts ignore complexity and priority, so use them with context rather than as a ranking of productivity.')}
+ const dpt=[...grp(L.filter(t=>t.dept!=='(Not set)'),t=>t.dept)].sort((a,b)=>b[1].length-a[1].length)[0],nd=L.filter(t=>t.dept==='(Not set)').length;
+ if(dpt)B('Fact',`${dpt[0]} raised the most tickets among those with a department (${dpt[1].length}).`);
+ if(nd/L.length>.3){B('Fact',`Department is blank on ${pct(nd,L.length)}% of tickets, so department analysis is incomplete.`);B('Recommendation','Make Department a required field on the portal / email-request form, or auto-fill it from the requester.')}
+ const ty=[...grp(L.filter(t=>t.sla==='Breached'),t=>t.type)].sort((a,b)=>b[1].length-a[1].length)[0];if(ty)B('Fact',`Request type “${ty[0]}” has the most SLA breaches (${ty[1].length}).`);
+ const pj=[...grp(L.filter(isBl),t=>t.proj)].sort((a,b)=>b[1].length-a[1].length)[0];if(pj)B('Fact',`Project ${pj[0]} has the largest backlog (${pj[1].length} open tickets). Growth over time needs multiple weekly uploads.`);
+ if(HPn.length)B('Fact',`${HPn.length} high-priority ticket(s) unresolved: ${HPn.slice(0,6).map(t=>t.key).join(', ')}.`);
+ if(od.length)B('Recommendation',`Review the ${od.length} unresolved ticket(s) already past SLA first: ${od.slice(0,6).map(t=>t.key).join(', ')}.`);
+ if(!MAP.resolved)B('Recommendation','Add “Resolved” date to the export so resolved-this-week, resolution time and backlog change can be measured.');
+ return`<div class="ins">${o.map(([a,t])=>`<div><span class="tag ${a}">${a}</span>${esc(t)}</div>`).join('')}</div>`}
+
+/* ---------- views ---------- */
+R.ov=L=>{const miss=[];if(!MAP.resolved)miss.push('Resolved date → resolved-this-week, avg resolution time, backlog change');if(!MAP.updated)miss.push('Updated → stale / not-recently-updated tickets');if(!MAP.dept||L.some(t=>t.dept==='(Not set)'))miss.push('Department (complete) → department analysis');miss.push('Status history / changelog → reopened and repeatedly reopened tickets','Time to first response, SLA breached flag → first-response and explicit SLA outcome','Reporter, Due date, Project → requester vs custom user field, overdue by due date');
+ M(`<div class="kg">${kpis(L).map(kc).join('')}</div><div class="card"><h3>Executive insights</h3>${insights(L)}</div><div class="g2">${card('Status distribution','c1')}${card('Daily ticket inflow','c2')}</div><div class="g2">${card('Priority distribution','c3')}${card('SLA status','c4')}</div><div class="card"><h3>Not calculable from this export</h3><div class="mu">Add these Jira fields to the saved filter / export to unlock more:</div><ul>${miss.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`);
+ const st=grp(L,t=>t.cat);mk('c1','doughnut',[...st.keys()].map(k=>CL[k]),[{data:[...st.values()].map(x=>x.length),colors:[...st.keys()].map(k=>CC[k])}]);
+ const ds=L.filter(t=>t.created),mn=ds.length?new Date(Math.min(...ds.map(t=>+t.created))):null,mx=ds.length?new Date(Math.max(...ds.map(t=>+t.created))):null,ks=mn?days(new Date(mn.getFullYear(),mn.getMonth(),mn.getDate()),new Date(mx.getFullYear(),mx.getMonth(),mx.getDate()+1)):[];
+ mk('c2','bar',ks.map(fd),[{label:'Created',data:ks.map(d=>ds.filter(t=>iso(t.created)===iso(d)).length)}]);
+ const p=grp(L,t=>t.pri);mk('c3','bar',[...p.keys()],[{label:'Tickets',data:[...p.values()].map(x=>x.length)}]);
+ const s=sl(L),ks2=Object.keys(SC).filter(k=>L.some(t=>t.sla===k));mk('c4','doughnut',ks2,[{data:ks2.map(k=>L.filter(t=>t.sla===k).length),colors:ks2.map(k=>SC[k])}])};
+
+R.dv=L=>{const rows=[...grp(L,t=>t.dev)].map(([d,x])=>{const s=sl(x),res=x.filter(t=>t.cat==='done').length,rt=avg(x.filter(t=>t.resolved&&t.created&&t.cat==='done').map(t=>(t.resolved-t.created)/36e5));return{d,as:x.length,res,pend:x.filter(t=>t.cat==='pend').length,prog:x.filter(t=>t.cat==='prog').length,re:x.filter(t=>t.cat==='reopen').length,wl:x.filter(isBl).length,met:s.met,br:s.br,sr:s.rate??-1,rr:pct(res,x.length-x.filter(t=>t.cat==='cancel').length),hi:x.filter(t=>HP.test(t.pri)).length,rt}});
+ const so={res:(a,b)=>b.res-a.res,pend:(a,b)=>a.pend-b.pend,sr:(a,b)=>b.sr-a.sr,wl:(a,b)=>b.wl-a.wl,rt:(a,b)=>(a.rt??1e9)-(b.rt??1e9)};rows.sort(so[DVS]||so.res);
+ const W=weeks(L);
+ M(`<div class="note">Ticket counts alone don’t measure productivity: complexity, priority and assignment history matter. “Developer” uses the custom Developer field and falls back to Assignee. Status history isn’t in this export, so tickets are attributed to the current developer.</div><div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h3>Developer performance ranking</h3><label>Sort by<select id="dvs"><option value="res">Highest resolved</option><option value="pend">Lowest pending</option><option value="sr">Highest SLA achievement</option><option value="wl">Highest workload</option>${MAP.resolved?'<option value="rt">Fastest resolution time</option>':''}</select></label></div>${tb(['#','Developer','Assigned','Resolved','Pending','In progress','Reopened','Open workload','SLA met','SLA breached','SLA %','Resolution rate','High+ priority','Avg resolution'],rows.map((r,i)=>[i+1,esc(r.d),r.as,r.res,r.pend,r.prog,r.re||'—',r.wl,r.met,r.br,r.sr<0?'—':r.sr+'%',f1(r.rr),r.hi,r.rt==null?'N/A':Math.round(r.rt/24*10)/10+' d']))}</div>
+ <div class="g2">${card('Resolved vs open workload by developer','d1',280)}${card('SLA achievement % by developer','d2',280)}</div><div class="g2">${card('Pending tickets by developer','d3',250)}${card('Weekly tickets assigned by developer'+(MAP.resolved?'':' (by created week; resolved date not in export)'),'d4',250)}</div>`);
+ $('#dvs').value=DVS;$('#dvs').onchange=e=>{DVS=e.target.value;render()};const lb=rows.map(r=>r.d);
+ mk('d1','bar',lb,[{label:'Resolved',data:rows.map(r=>r.res),backgroundColor:'#12a150'},{label:'Open workload',data:rows.map(r=>r.wl),backgroundColor:'#e59a0b'}],{stk:1});
+ mk('d2','bar',lb,[{label:'SLA %',data:rows.map(r=>Math.max(r.sr,0))}],{h:1,max:100});mk('d3','bar',lb,[{label:'Pending',data:rows.map(r=>r.pend)}]);
+ mk('d4','bar',W.map(w=>fd(new Date(w))),rows.map((r,i)=>({label:r.d,data:W.map(w=>L.filter(t=>t.dev===r.d&&t.created&&+ws(t.created)===w).length),backgroundColor:PAL[i%PAL.length]})),{stk:1})};
+
+R.sl=L=>{const s=sl(L),W=weeks(L),bd=[...grp(L,t=>t.dev)],none=SM==='none'&&!MAP.breach;
+ const msg=none?'<b>SLA data unavailable.</b> Export the “Time to resolution”, “Time to first response” and “SLA breached” custom fields from JSM.':SM==='unknown'&&!MAP.breach?'<b>SLA outcome cannot be determined.</b> The SLA column has no negative values, so it can’t be told whether it is remaining time, elapsed time or a deadline. All tickets are marked Unknown. Export an explicit “SLA breached” field.':`<b>How the SLA column is read:</b> ${MAP.breach?'an explicit SLA-breached flag is used.':`“${esc(MAP.sla)}” holds hh:mm values and some are negative, so it is treated as <i>time remaining</i> on the SLA clock (negative = past target). For resolved tickets that means met (≥0) or breached (&lt;0). This is an inference from the data. Confirm against your JSM SLA settings; business-hours calendars are not in the CSV.`} “At Risk” = unresolved with ≤ ${+$('#thr').value} hours left (adjustable in the top bar; a display setting, not a Jira target). Achievement % = met ÷ SLA-eligible (met + breached + at risk + on track).`;
+ M(`<div class="note">${msg}</div><div class="kg">${[['SLA-eligible',s.el,'','Tickets with a determinable SLA state'],['SLA met',s.met,'','Resolved within target','ok'],['SLA breached',s.br,f1(s.brr)+' of eligible','','bad'],['Achievement',f1(s.rate),`Decided only: ${f1(s.rd)}`,'Met ÷ eligible'],['At risk',s.ar,'','Unresolved, little time left','warn'],['Unknown / N/A',s.unk+s.na,'','No usable SLA value'],na('Avg first response','Not in export')].map(kc).join('')}</div>
+ <div class="g2">${card('SLA achievement gauge','s1',210)}${card('SLA status breakdown','s2',210)}</div><div class="g2">${card('SLA met vs breached by developer','s3',260)}${card('SLA breaches by priority','s4',260)}</div><div class="g2">${card('SLA breaches by request type','s5',240)}${card('SLA by department','s6',240)}</div>${card('SLA trend by week created','s7',240)}
+ <div class="card"><h3>Open tickets at risk or breached</h3>${tb(['Ticket','Summary','Developer','Priority','Status','Remaining','SLA'],L.filter(t=>isBl(t)&&(t.sla==='Breached'||t.sla==='At Risk')).sort((a,b)=>a.slaH-b.slaH).map(t=>[esc(t.key),`<span title="${esc(t.summary)}">${esc(t.summary.slice(0,70))}</span>`,esc(t.dev),esc(t.pri),esc(t.status),t.slaRaw||'—',sb(t)]))}</div>`);
+ mk('s1','doughnut',['Achieved','Remaining'],[{data:[s.rate||0,100-(s.rate||0)],colors:['#12a150','#e2e7f0'],borderWidth:0}],{x:{circumference:180,rotation:-90,cutout:'72%',plugins:{legend:{display:false}}}});
+ const ks=Object.keys(SC).filter(k=>L.some(t=>t.sla===k));mk('s2','doughnut',ks,[{data:ks.map(k=>L.filter(t=>t.sla===k).length),colors:ks.map(k=>SC[k])}]);
+ const two=(id,g,h)=>{const e=[...g].map(([k,x])=>[k,x.filter(t=>t.sla==='Achieved').length,x.filter(t=>t.sla==='Breached').length]);mk(id,'bar',e.map(r=>r[0]),[{label:'Met',data:e.map(r=>r[1]),backgroundColor:'#12a150'},{label:'Breached',data:e.map(r=>r[2]),backgroundColor:'#dc3545'}],{stk:1,h})};
+ two('s3',bd,1);two('s4',grp(L,t=>t.pri));two('s5',grp(L,t=>t.type));two('s6',grp(L.filter(t=>t.dept!=='(Not set)'),t=>t.dept),1);
+ mk('s7','line',W.map(w=>fd(new Date(w))),[{label:'Breached',data:W.map(w=>L.filter(t=>t.sla==='Breached'&&+ws(t.created)===w).length),borderColor:'#dc3545'},{label:'Achieved',data:W.map(w=>L.filter(t=>t.sla==='Achieved'&&+ws(t.created)===w).length),borderColor:'#12a150'}])};
+
+R.lc=L=>{const bl=L.filter(isBl),asof=new Date($('#asof').value+'T23:59:59'),age=t=>t.created?Math.max(0,(asof-t.created)/864e5):0,W=weeks(L),B=[1,3,7,15,30];
+ const att=bl.map(t=>({t,a:age(t),f:[age(t)>7?'Older than 7 days':'',!t.assignee?'No assignee':'',t.sla==='Breached'?'Past SLA':'',t.cat==='pend'?'Pending':''].filter(Boolean)})).filter(x=>x.f.length).sort((a,b)=>b.a-a.a);
+ M(`<div class="note">Age is measured from Created to the as-of date (${esc($('#asof').value)}). “Stuck in status”, “not updated recently” and “repeatedly reopened” need the Updated field and status history, which this export doesn’t contain.${MAP.resolved?'':' Backlog growth and created-vs-resolved need a Resolved date.'}</div>
+ <div class="g2">${card('Ticket status distribution','l1')}${card('Weekly ticket inflow','l2')}</div><div class="g2">${card('Unresolved ticket ageing (older than N days)','l3')}${card('Priority-wise pending / backlog','l4')}</div>${card(MAP.resolved?'Created vs resolved by week':'Cumulative tickets created (resolved date not in export)','l5',240)}
+ <div class="card"><h3>Backlog tickets needing attention (${att.length})</h3>${tb(['Ticket','Summary','Status','Developer','Priority','Age (days)','SLA remaining','Flags'],att.slice(0,100).map(x=>[esc(x.t.key),esc(x.t.summary.slice(0,70)),esc(x.t.status),esc(x.t.dev),esc(x.t.pri),x.a.toFixed(1),x.t.slaRaw||'—',x.f.map(f=>bg(f,'#e59a0b')).join(' ')]))}</div>`);
+ const st=grp(L,t=>t.status);mk('l1','doughnut',[...st.keys()],[{data:[...st.values()].map(x=>x.length)}]);
+ mk('l2','bar',W.map(w=>fd(new Date(w))),[{label:'Created',data:W.map(w=>L.filter(t=>t.created&&+ws(t.created)===w).length)}]);
+ mk('l3','bar',B.map(b=>`> ${b} day${b>1?'s':''}`),[{label:'Unresolved',data:B.map(b=>bl.filter(t=>age(t)>b).length),backgroundColor:'#e59a0b'}]);
+ const pp=grp(bl,t=>t.pri);mk('l4','bar',[...pp.keys()],[{label:'Backlog',data:[...pp.values()].map(x=>x.length),backgroundColor:'#dc3545'}]);
+ let c=0;mk('l5',MAP.resolved?'bar':'line',W.map(w=>fd(new Date(w))),MAP.resolved?[{label:'Created',data:W.map(w=>L.filter(t=>t.created&&+ws(t.created)===w).length)},{label:'Resolved',data:W.map(w=>L.filter(t=>t.resolved&&+ws(t.resolved)===w).length),backgroundColor:'#12a150'}]:[{label:'Cumulative created',data:W.map(w=>c+=L.filter(t=>t.created&&+ws(t.created)===w).length)}])};
+
+R.us=L=>{const g=[...grp(L.filter(t=>t.req!=='(Not set)'),t=>t.req)].sort((a,b)=>b[1].length-a[1].length),cw=new Set(inr(L,wr(0)).map(t=>t.req)),W=weeks(L),rep=g.filter(([,x])=>x.length>1);
+ const first=new Set(g.filter(([,x])=>Math.min(...x.map(t=>+t.created))>=+wr(0)[0]).map(([k])=>k));
+ M(`<div class="note">Requester = the “${esc(MAP.req||'user')}” field. Spelling variants differing only by spaces/case are merged; names that merely look alike (e.g. “Aftab” / “Aftab Ali”) are flagged in Data Quality but not merged.</div><div class="kg">${[['Unique requesters',g.length],['Active this week',[...cw].filter(x=>x!=='(Not set)').length],['First seen this week',first.size,'','Relative to tickets in this file'],['Repeat creators (2+)',rep.length],['Avg tickets / user',g.length?(g.reduce((s,[,x])=>s+x.length,0)/g.length).toFixed(1):'—']].map(kc).join('')}</div>
+ <div class="g2">${card('Top 10 requesters','u1',300)}${card('Department-wise ticket volume','u2',300)}</div><div class="g2">${card('Request type distribution','u3')}${card('Activity trend (tickets and unique requesters per week)','u4')}</div><div class="card"><h3>Repeat ticket creators</h3>${tb(['Requester','Tickets','Backlog','SLA breached'],rep.map(([k,x])=>[esc(k),x.length,x.filter(isBl).length,x.filter(t=>t.sla==='Breached').length]))}</div>`);
+ mk('u1','bar',g.slice(0,10).map(x=>x[0]),[{label:'Tickets',data:g.slice(0,10).map(x=>x[1].length)}],{h:1});
+ const d=[...grp(L,t=>t.dept)].sort((a,b)=>b[1].length-a[1].length);mk('u2','bar',d.map(x=>x[0]),[{label:'Tickets',data:d.map(x=>x[1].length)}],{h:1});
+ const ty=grp(L,t=>t.type);mk('u3','doughnut',[...ty.keys()],[{data:[...ty.values()].map(x=>x.length)}]);
+ mk('u4','line',W.map(w=>fd(new Date(w))),[{label:'Tickets',data:W.map(w=>L.filter(t=>t.created&&+ws(t.created)===w).length)},{label:'Unique requesters',data:W.map(w=>new Set(L.filter(t=>t.created&&+ws(t.created)===w).map(t=>t.req)).size)}])};
+
+R.pr=L=>{const o=['Highest','Critical','High','Medium','Low','Lowest','(Not set)'],P=[...grp(L,t=>t.pri)].sort((a,b)=>(o.indexOf(a[0])+99)%99-(o.indexOf(b[0])+99)%99),hp=L.filter(t=>isBl(t)&&HP.test(t.pri));
+ M(`<div class="g2">${card('Priority distribution','p1')}${card('Priority-wise resolution rate %','p2')}</div><div class="g2">${card('Priority-wise SLA achievement %','p3')}${card('Priority-wise pending / backlog','p4')}</div><div class="g2">${card('Request type distribution','p5')}${card('Request type: SLA met vs breached','p6')}</div>
+ <div class="note">Request-type resolution time needs a Resolved date, which is not in this export.</div><div class="card"><h3>High-priority tickets still unresolved (${hp.length})</h3>${tb(['Ticket','Summary','Priority','Status','Developer','SLA remaining','SLA'],hp.map(t=>[esc(t.key),esc(t.summary.slice(0,80)),esc(t.pri),esc(t.status),esc(t.dev),t.slaRaw||'—',sb(t)]))}</div>`);
+ const l=P.map(x=>x[0]);mk('p1','doughnut',l,[{data:P.map(x=>x[1].length)}]);mk('p2','bar',l,[{label:'Resolved %',data:P.map(([,x])=>pct(x.filter(t=>t.cat==='done').length,x.filter(t=>t.cat!=='cancel').length)||0),backgroundColor:'#12a150'}],{max:100});
+ mk('p3','bar',l,[{label:'SLA %',data:P.map(([,x])=>sl(x).rate||0)}],{max:100});mk('p4','bar',l,[{label:'Backlog',data:P.map(([,x])=>x.filter(isBl).length),backgroundColor:'#e59a0b'}]);
+ const ty=[...grp(L,t=>t.type)];mk('p5','doughnut',ty.map(x=>x[0]),[{data:ty.map(x=>x[1].length)}]);mk('p6','bar',ty.map(x=>x[0]),[{label:'Met',data:ty.map(([,x])=>x.filter(t=>t.sla==='Achieved').length),backgroundColor:'#12a150'},{label:'Breached',data:ty.map(([,x])=>x.filter(t=>t.sla==='Breached').length),backgroundColor:'#dc3545'}],{stk:1})};
+
+R.wk=L=>{const HR=!!MAP.resolved,sel=WKS==='cur'?wr(0):WKS==='prev'?wr(-1):WKS==='l4'?[wr(-3)[0],wr(0)[1]]:(()=>{const s=WKC.a?new Date(WKC.a+'T00:00'):wr(0)[0],b=WKC.b?new Date(WKC.b+'T00:00'):new Date(s);return[s,new Date(b.getFullYear(),b.getMonth(),b.getDate()+1)]})(),[s,e]=sel,len=e-s,ps_=new Date(+s-len),cr=inr(L,[s,e]),pv=inr(L,[ps_,s]),cs=sl(cr),pS=sl(pv);
+ const rin=(a,b)=>L.filter(t=>t.resolved&&t.resolved>=a&&t.resolved<b).length,rc=HR?rin(s,e):null,rp=HR?rin(ps_,s):null;
+ const cards=[['Created in period',cr.length,dpc(cr.length,pv.length),`${fd(s)} – ${fd(new Date(e-1))}`],HR?['Resolved in period',rc,dpc(rc,rp),'By resolution date','ok']:na('Resolved in period','Needs Resolved date in export'),['Still pending',cr.filter(isBl).length,`of ${cr.length} created`,'Created in period and not yet resolved'],['SLA achieved',cs.met,dpc(cs.met,pS.met),'Tickets created in period','ok'],['SLA breached',cs.br,dpc(cs.br,pS.br),'Tickets created in period',cs.br?'bad':'ok'],HR?['Backlog change',(cr.length-rc>0?'+':'')+(cr.length-rc),'Created − resolved','']:na('Backlog change','Needs Resolved date'),['SLA achievement',f1(cs.rate),cs.rate!=null&&pS.rate!=null?(cs.rate-pS.rate>=0?'▲ +':'▼ ')+(cs.rate-pS.rate).toFixed(1)+' pts vs previous':'No prior data','Week-over-week change'],['Created change',pv.length?Math.round((cr.length-pv.length)/pv.length*100)+'%':'—',`Previous period: ${pv.length}`,'Same-length period before']];
+ const d=days(s,e),daily=d.length<=31,rows=[...grp(cr,t=>t.dev)].map(([k,x])=>{const q=sl(x);return[esc(k),x.length,x.filter(isBl).length,q.met,q.br,HR?L.filter(t=>t.dev===k&&t.resolved&&t.resolved>=s&&t.resolved<e).length:'N/A']});
+ M(`<div class="card noprint" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label>Period<select id="wks"><option value="cur">Current week</option><option value="prev">Previous week</option><option value="l4">Last 4 weeks</option><option value="cus">Custom range</option></select></label>${WKS==='cus'?`<label>From<input type="date" id="wa" value="${WKC.a}"></label><label>To<input type="date" id="wb" value="${WKC.b}"></label>`:''}<button class="btn g" onclick="print()">Print / Save as PDF</button><button class="btn" id="wex">⬇ Export this period</button><span class="mu">Global filters also apply. Current week = week containing the latest ticket (${fd(ANCH)}).</span></div>
+ <div class="kg">${cards.map(kc).join('')}</div>${HR?'':'<div class="note">Resolution events can’t be placed in a week without a Resolved date (or changelog), so “resolved this week” is not estimated from current status. Export <b>Resolved</b> to enable it. SLA figures above are for tickets <i>created</i> in the period.</div>'}
+ <div class="g2">${card('Created'+(HR?' vs resolved':'')+(daily?' by day':' by week'),'w1')}${card('This period vs previous period','w2')}</div><div class="card"><h3>Developer-wise weekly view</h3>${tb(['Developer','Created','Still pending','SLA met','SLA breached','Resolved'],rows)}</div>`);
+ $('#wks').value=WKS;$('#wks').onchange=x=>{WKS=x.target.value;render()};if($('#wa')){$('#wa').onchange=x=>{WKC.a=x.target.value;render()};$('#wb').onchange=x=>{WKC.b=x.target.value;render()}}
+ $('#wex').onclick=()=>dl('jira_period_'+iso(s)+'.csv',cr.map(cleanRow));
+ const bk=daily?d.map(x=>[x,new Date(x.getFullYear(),x.getMonth(),x.getDate()+1)]):weeks(cr.concat(L.filter(t=>t.resolved&&t.resolved>=s&&t.resolved<e))).map(w=>{const a=new Date(w),b=new Date(a);b.setDate(b.getDate()+7);return[a,b]});
+ mk('w1','bar',bk.map(x=>fd(x[0])),[{label:'Created',data:bk.map(x=>inr(cr,x).length)}].concat(HR?[{label:'Resolved',data:bk.map(x=>rin(x[0],x[1])),backgroundColor:'#12a150'}]:[]));
+ const lab=['Created','Still pending','SLA breached'],cu=[cr.length,cr.filter(isBl).length,cs.br],pr=[pv.length,pv.filter(isBl).length,pS.br];if(HR){lab.splice(1,0,'Resolved');cu.splice(1,0,rc);pr.splice(1,0,rp)}
+ mk('w2','bar',lab,[{label:'This period',data:cu},{label:'Previous period',data:pr,backgroundColor:'#94a3b8'}])};
+
+R.dq=L=>{const fr=FIELDS.filter(f=>MAP[f[0]]).map(([k,l])=>{const m=T.filter(t=>!gv(t.raw,k).trim()).length;return[l,esc(MAP[k]),m,pct(m,T.length)+'%']}),ab=FIELDS.filter(f=>!MAP[f[0]]).map(f=>f[1]),I=issRows(T);
+ M(`<div class="kg">${[['Total records',DQ.total],['Valid records',DQ.valid,'','No blocking errors','ok'],['Invalid records',DQ.invalid,'','Duplicate/missing key, bad date, invalid SLA…',DQ.invalid?'bad':'ok'],['Duplicate records',DQ.dup],['Issues found',DQ.iss,'','Errors + warnings'],['Data quality score',f1(DQ.score),'','Share of checked cells without issues',DQ.score>=90?'ok':DQ.score>=75?'warn':'bad']].map(kc).join('')}</div>
+ <div class="note">Original data is never changed. The cleaned CSV trims whitespace, adds derived columns (final developer, status category, SLA status, week) and lists each record’s issues. Use the buttons at the top right to download the cleaned data and the issues list.</div>
+ <div class="g2"><div class="card"><h3>Field completeness (mapped columns)</h3>${tb(['Field','Column','Missing','%'],fr)}</div><div class="card"><h3>Fields not found in the export</h3><div class="mu">${ab.length?ab.map(esc).join(' · '):'All expected fields found.'}</div><h3 style="margin-top:14px">Detected column mapping</h3><div class="mu">${FIELDS.filter(f=>MAP[f[0]]).map(f=>`${esc(f[1])} → <b>${esc(MAP[f[0]])}</b>`).join('<br>')}${MAP.proj?'':'<br>Project → derived from the issue-key prefix'}</div></div></div>
+ <div class="card"><h3>Problematic records (${I.length})</h3>${tb(['Ticket','Row','Field','Severity','Issue','Original value'],I.slice(0,300).map(i=>[esc(i.Issue_key),i.Row_number,esc(i.Field),bg(i.Severity,i.Severity==='Error'?'#dc3545':'#e59a0b'),esc(i.Issue),esc(String(i.Original_value).replace(/\s+/g,' '))]))}${I.length>300?'<div class="mu">Showing first 300. Download the full CSV.</div>':''}</div>`)};
+
+R.tk=L=>{const q=TQ.toLowerCase(),F=L.filter(t=>!q||[t.key,t.summary,t.dev,t.req,t.dept,t.status,t.pri,t.type].join(' ').toLowerCase().includes(q)),k={created:t=>+t.created||0,key:t=>t.key,dev:t=>t.dev,req:t=>t.req,status:t=>t.status,pri:t=>t.pri,sla:t=>t.sla,slaH:t=>isNaN(t.slaH)?1e9:t.slaH,dept:t=>t.dept};
+ F.sort((a,b)=>{const x=k[TS](a),y=k[TS](b);return(x>y?1:x<y?-1:0)*TD});
+ const n=F.length,pg=Math.max(1,Math.ceil(n/25));TP=Math.min(TP,pg-1);const cols=[['key','Ticket'],['',  'Summary'],['dev','Developer'],['req','Requester'],['dept','Department'],['status','Status'],['pri','Priority'],['slaH','SLA remaining'],['sla','SLA'],['created','Created']];
+ M(`<div class="card"><div class="noprint" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:10px"><label>Search<input id="tq" value="${esc(TQ)}" placeholder="key, summary, name…" style="width:240px"></label><button class="btn" id="tex">⬇ Export filtered data</button><span class="mu">${n} tickets · click a row for details · click a header to sort</span></div><div class="tw"><table><thead><tr>${cols.map(([c,l])=>`<th data-s="${c}" style="${c?'cursor:pointer':''}">${l}${TS===c?(TD<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>${F.slice(TP*25,TP*25+25).map(t=>`<tr class="cl" data-i="${t.i}"><td>${esc(t.key)}</td><td class="w">${esc(t.summary)}</td><td>${esc(t.dev)}</td><td>${esc(t.req)}</td><td>${esc(t.dept)}</td><td>${bg(t.status,CC[t.cat])}</td><td>${esc(t.pri)}</td><td>${t.slaRaw||'—'}</td><td>${sb(t)}</td><td>${fdt(t.created)}</td></tr>`).join('')}</tbody></table></div><div class="pg"><button class="btn g" id="pp">‹ Prev</button><span>Page ${TP+1} / ${pg}</span><button class="btn g" id="pn">Next ›</button></div></div>`);
+ $('#tq').oninput=e=>{TQ=e.target.value;TP=0;render();const i=$('#tq');i.focus();i.setSelectionRange(TQ.length,TQ.length)};$('#pp').onclick=()=>{TP=Math.max(0,TP-1);render()};$('#pn').onclick=()=>{TP=Math.min(pg-1,TP+1);render()};
+ $('#tex').onclick=()=>dl('jira_filtered_tickets.csv',F.map(cleanRow));
+ $$('th[data-s]').forEach(h=>h.onclick=()=>{const c=h.dataset.s;if(!c)return;TD=TS===c?-TD:-1;TS=c;render()});
+ $$('tr.cl').forEach(r=>r.onclick=()=>{const t=T[+r.dataset.i];$('#mc').innerHTML=`<div style="display:flex;justify-content:space-between"><h3>${esc(t.key)} · ${esc(t.summary)}</h3><button class="btn g" onclick="$('#mod').style.display='none'">Close</button></div>${tb(['Field','Value'],[...HEAD.map(h=>[esc(h),esc(t.raw[h])]),['Developer (final)',esc(t.dev)],['Requester (clean)',esc(t.req)],['Status category',CL[t.cat]],['SLA status',sb(t)],['Data issues',t.iss.map(i=>esc(i.msg)).join('<br>')||'None']])}`;$('#mod').style.display='flex'})};
+$('#mod').onclick=e=>{if(e.target.id==='mod')e.target.style.display='none'};
+
+/* ---------- wiring ---------- */
+const fi=$('#fi');$('#upb').onclick=()=>fi.click();fi.onchange=e=>{load(e.target.files[0]);fi.value=''};
+const dz=$('#dz');['dragover','dragenter'].forEach(v=>dz.addEventListener(v,e=>{e.preventDefault();dz.classList.add('on')}));['dragleave','drop'].forEach(v=>dz.addEventListener(v,e=>{e.preventDefault();dz.classList.remove('on')}));dz.addEventListener('drop',e=>load(e.dataTransfer.files[0]));
+['ws','asof'].forEach(i=>$('#'+i).onchange=()=>{if(T.length)buildAll()});$('#thr').onchange=()=>{if(T.length){classify();render()}};
+</script></body></html>

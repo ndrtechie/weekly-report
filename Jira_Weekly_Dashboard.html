@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jira Weekly Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#182230;--muted:#667085;--line:#e5eaf1;--blue:#2563eb;--green:#16a36a;--amber:#d97706;--red:#dc2626}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.45 Inter,system-ui,Segoe UI,Arial;color:var(--ink)}
+header{background:#101d36;color:#fff;padding:22px max(20px,calc((100% - 1440px)/2));display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}header p{margin:4px 0 0;color:#c5d1e4}.wrap{max-width:1440px;margin:auto;padding:22px}
+.upload{background:#fff;border:2px dashed #9bb5e8;border-radius:16px;padding:25px;text-align:center;margin-bottom:18px}
+.upload strong{font-size:17px}.upload input{display:block;margin:14px auto 0;max-width:100%}
+button,.btn{border:0;border-radius:9px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:650;cursor:pointer}button.secondary{background:#eaf0fb;color:#23416f}button:disabled{opacity:.45;cursor:not-allowed}
+.note{color:var(--muted);font-size:12px}.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.filters{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;background:#fff;padding:15px;border:1px solid var(--line);border-radius:14px;margin:16px 0}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}select,input[type=search],input[type=date]{width:100%;padding:9px;border:1px solid #d7deea;border-radius:8px;background:#fff;color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:16px 0}.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 2px 8px #14213b08}
+.kpi .label{color:var(--muted);font-size:12px}.kpi .value{font-size:27px;font-weight:750;margin-top:5px}.kpi .sub{color:var(--muted);font-size:11px;margin-top:3px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.panel h3{font-size:15px;margin:0 0 12px}.canvas{height:260px;position:relative}
+.tablewrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:10px}table{border-collapse:collapse;width:100%;min-width:1050px;background:#fff}th,td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{position:sticky;top:0;background:#f7f9fc;z-index:1;font-size:12px;color:#526078}td{font-size:12px}tr:hover td{background:#f8fbff}
+.pill{display:inline-block;padding:3px 8px;border-radius:99px;background:#edf2f8;font-size:11px}.good{background:#dcfce7;color:#166534}.warn{background:#fef3c7;color:#92400e}.bad{background:#fee2e2;color:#991b1b}
+section{margin:18px 0}.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}.sectionhead h2{font-size:17px;margin:0}.qualitygrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.qitem{border:1px solid var(--line);border-radius:10px;padding:12px}.qitem b{font-size:20px;display:block}.muted{color:var(--muted)}.hidden{display:none}.warning{background:#fff8e6;border:1px solid #f3d18a;color:#79520b;padding:12px;border-radius:10px;margin:12px 0}
+@media(max-width:950px){.grid{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:repeat(3,1fr)}.qualitygrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.wrap{padding:12px}.charts{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}.grid{gap:8px}.kpi .value{font-size:22px}.canvas{height:230px}}
+</style></head>
+<body>
+<header><div><h1>Jira Weekly Performance Dashboard</h1><p>Upload a Jira CSV to build a live performance and data-quality report</p></div><div class="bar"><button class="secondary" id="resetBtn" disabled>Reset filters</button><button id="cleanBtn" disabled>Download cleaned CSV</button></div></header>
+<main class="wrap">
+<div class="upload" id="drop"><strong>Upload your Jira CSV</strong><div class="muted">Drag and drop a .csv file here, or choose a file from your computer.</div><input id="file" type="file" accept=".csv,text/csv"><div id="fileInfo" class="note">Your data is processed in this browser; it is not uploaded to a server.</div></div>
+<div id="app" class="hidden">
+<div id="resolutionWarning" class="warning hidden"></div>
+<div class="filters">
+<div><label>Created from</label><input type="date" id="from"></div><div><label>Created to</label><input type="date" id="to"></div>
+<div><label>Developer</label><select id="developer"><option value="">All developers</option></select></div>
+<div><label>Status</label><select id="status"><option value="">All statuses</option></select></div>
+<div><label>Priority</label><select id="priority"><option value="">All priorities</option></select></div>
+<div><label>Request type</label><select id="request"><option value="">All request types</option></select></div>
+</div>
+<div class="grid" id="kpis"></div>
+<section class="charts">
+<div class="panel"><h3>Tickets by status</h3><div class="canvas"><canvas id="statusChart"></canvas></div></div>
+<div class="panel"><h3>Resolved tickets by developer</h3><div class="canvas"><canvas id="devChart"></canvas></div></div>
+<div class="panel"><h3>Priority distribution</h3><div class="canvas"><canvas id="priorityChart"></canvas></div></div>
+<div class="panel"><h3>Tickets created over time</h3><div class="canvas"><canvas id="trendChart"></canvas></div></div>
+<div class="panel"><h3>Request type distribution</h3><div class="canvas"><canvas id="requestChart"></canvas></div></div>
+<div class="panel"><h3>Developer workload by status</h3><div class="canvas"><canvas id="workloadChart"></canvas></div></div>
+</section>
+<section class="panel"><div class="sectionhead"><h2>Data quality audit</h2><button class="secondary" id="qualityBtn">Download quality issues CSV</button></div><div class="qualitygrid" id="quality"></div><p class="note" id="qualityNote"></p></section>
+<section class="panel"><div class="sectionhead"><h2>Ticket details</h2><div class="bar"><input type="search" id="search" placeholder="Search issue, summary, developer..." style="width:260px"><button class="secondary" id="exportBtn">Download filtered CSV</button></div></div><div class="note" id="rowCount"></div><div class="tablewrap"><table><thead><tr><th>Issue key</th><th>Summary</th><th>Developer</th><th>Requester</th><th>Status</th><th>Priority</th><th>Created</th><th>Request type</th><th>Time to resolution</th><th>Department</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+</div>
+</main>
+<script>
+let raw=[],rows=[],quality=[],charts={};const $=id=>document.getElementById(id);
+const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function find(row,names){const keys=Object.keys(row);for(const n of names){const k=keys.find(x=>norm(x)===norm(n));if(k&&row[k]!==undefined)return row[k]}return ''}
+function val(v){return String(v??'').trim()}
+function dateOf(v){if(!v)return null;let s=String(v).trim();let d=new Date(s);if(!isNaN(d))return d;let m=s.match(/^(\d{1,2})\/([A-Za-z]{3})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM))?/i);if(m){let months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];let yr=+m[3];if(yr<100)yr+=2000;let h=+(m[4]||0);if(m[6])h=(h%12)+(m[6].toUpperCase()==='PM'?12:0);return new Date(yr,months.indexOf(m[2].toLowerCase()),+m[1],h,+(m[5]||0))}return null}
+function csv(rows){if(!rows.length)return '';let keys=Object.keys(rows[0]);return [keys.join(','),...rows.map(r=>keys.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(','))].join('\r\n')}
+function download(name,text){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8;'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
+function resolved(s){return /resolved|closed|done/i.test(s)}
+function setup(file){$('fileInfo').textContent='Reading '+file.name+'…';Papa.parse(file,{header:true,skipEmptyLines:true,dynamicTyping:false,complete:r=>{raw=r.data.filter(x=>Object.values(x).some(v=>val(v)));if(!raw.length){$('fileInfo').textContent='No data rows found. Check your CSV.';return}rows=raw.map((r,i)=>({original:r,key:val(find(r,['Issue key','Key'])),summary:val(find(r,['Summary','Title'])),developer:val(find(r,['Custom field (Developer)','Developer','Assignee'])),requester:val(find(r,['Custom field (UserName)','Reporter','Requestor','UserName'])),status:val(find(r,['Status'])),priority:val(find(r,['Priority'])),createdRaw:val(find(r,['Created','Created date'])),created:dateOf(find(r,['Created','Created date'])),request:val(find(r,['Custom field (Request Type)','Request Type','Request type'])),resolutionTime:val(find(r,['Custom field (Time to resolution)','Time to resolution'])),department:val(find(r,['Custom field (Department)','Department'])),resolutionDate:dateOf(find(r,['Resolution Date','Resolved','Resolution date'])) ,index:i}));quality=[];const seen=new Set();rows.forEach(x=>{let add=(type)=>quality.push({issueKey:x.key||'',type,developer:x.developer,status:x.status,created:x.createdRaw});if(!x.key)add('Missing issue key');if(x.key&&seen.has(x.key))add('Duplicate issue key');seen.add(x.key);if(!x.developer)add('Missing developer');if(!x.requester)add('Missing requester');if(!x.priority)add('Missing priority');if(!x.department)add('Missing department');if(!x.created)add('Missing or invalid created date');if(x.status&&!/^(new|open|to do|todo|in progress|pending|waiting|on hold|resolved|closed|done|cancelled|canceled)$/i.test(x.status))add('Non-standard status');if(resolved(x.status)&&!x.resolutionDate&&Object.keys(x.original).some(k=>norm(k)==='resolutiondate'))add('Resolved without resolution date')});$('fileInfo').textContent=`Loaded ${rows.length} tickets from ${file.name} · ${Object.keys(raw[0]).length} columns`; $('app').classList.remove('hidden');$('resetBtn').disabled=$('cleanBtn').disabled=false;const hasRes=Object.keys(raw[0]).some(k=>['resolutiondate','resolveddate'].includes(norm(k)));$('resolutionWarning').classList.toggle('hidden',hasRes);$('resolutionWarning').textContent='Your CSV does not contain a Resolution Date field. Resolved counts below reflect tickets currently marked Resolved/Closed/Done, not tickets proven to have been resolved during the selected week. Export Resolution Date or Jira changelog history for accurate weekly completion reporting.';populateFilters();render()},error:e=>$('fileInfo').textContent='CSV read error: '+e.message})}
+function opts(id,vals){let el=$(id),keep=el.value;el.innerHTML='<option value="">All</option>'+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');el.value=keep}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function populateFilters(){opts('developer',rows.map(x=>x.developer));opts('status',rows.map(x=>x.status));opts('priority',rows.map(x=>x.priority));opts('request',rows.map(x=>x.request));let ds=rows.map(x=>x.created).filter(Boolean).sort((a,b)=>a-b);if(ds.length){$('from').value=ds[0].toISOString().slice(0,10);$('to').value=ds.at(-1).toISOString().slice(0,10)}}
+function filtered(){let q=$('search').value.toLowerCase();return rows.filter(x=>(!$('developer').value||x.developer===$('developer').value)&&(!$('status').value||x.status===$('status').value)&&(!$('priority').value||x.priority===$('priority').value)&&(!$('request').value||x.request===$('request').value)&&(!$('from').value||!x.created||x.created>new Date($('from').value+'T00:00:00'))&&(!$('to').value||!x.created||x.created<new Date($('to').value+'T23:59:59'))&&(!q||[x.key,x.summary,x.developer,x.requester,x.status].join(' ').toLowerCase().includes(q)))}
+function countBy(arr,fn){let m={};arr.forEach(x=>{let k=fn(x)||'Unspecified';m[k]=(m[k]||0)+1});return m}
+function chart(id,type,labels,datasets){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut'||datasets.length>1,position:'bottom'}},scales:type==='doughnut'?{}:{y:{beginAtZero:true,ticks:{precision:0}}}}})}
+function render(){let a=filtered(),resolvedRows=a.filter(x=>resolved(x.status)),pending=a.filter(x=>!resolved(x.status)),inprog=a.filter(x=>/progress/i.test(x.status));let devs=new Set(a.map(x=>x.developer).filter(Boolean)),users=new Set(a.map(x=>x.requester).filter(Boolean));let k=[['Total tickets',a.length,'Currently matching filters'],['Resolved tickets',resolvedRows.length,'Current status, not weekly resolution events'],['Pending tickets',pending.length,'Not currently resolved'],['In progress',inprog.length,'Current status'],['Active developers',devs.size,'Distinct developer names'],['Active requesters',users.size,'Distinct requester names'],['Resolution rate',a.length?(resolvedRows.length/a.length*100).toFixed(1)+'%':'0%','Resolved ÷ total'],['Data quality flags',quality.filter(q=>a.some(x=>x.key===q.issueKey)).length,'Flagged records / issues']];$('kpis').innerHTML=k.map(x=>`<div class="card kpi"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');
+let st=countBy(a,x=>x.status),dv=countBy(resolvedRows,x=>x.developer),pr=countBy(a,x=>x.priority),rq=countBy(a,x=>x.request),work={};a.forEach(x=>{let d=x.developer||'Unassigned';work[d]??={};let s=x.status||'Unspecified';work[d][s]=(work[d][s]||0)+1});
+chart('statusChart','doughnut',Object.keys(st),[{data:Object.values(st)}]);chart('devChart','bar',Object.keys(dv),[{label:'Current resolved status',data:Object.values(dv)}]);chart('priorityChart','doughnut',Object.keys(pr),[{data:Object.values(pr)}]);chart('requestChart','bar',Object.keys(rq),[{label:'Tickets',data:Object.values(rq)}]);
+let days=countBy(a.filter(x=>x.created),x=>x.created.toISOString().slice(0,10));chart('trendChart','line',Object.keys(days).sort(),[{label:'Created tickets',data:Object.keys(days).sort().map(k=>days[k]),tension:.25}]);
+let statuses=[...new Set(a.map(x=>x.status||'Unspecified'))],developers=Object.keys(work);chart('workloadChart','bar',developers,statuses.map(s=>({label:s,data:developers.map(d=>work[d][s]||0)})));
+let qs=countBy(quality,x=>x.type);$('quality').innerHTML=Object.entries(qs).map(([k,v])=>`<div class="qitem"><b>${v}</b><span>${esc(k)}</span></div>`).join('')||'<div class="qitem">No quality issues detected.</div>';$('qualityNote').textContent=`Audit checks ${rows.length} imported records. Missing department is a flag, not necessarily an error if your workflow does not use departments.`;
+$('rowCount').textContent=`Showing ${a.length} of ${rows.length} tickets`;$('rows').innerHTML=a.slice(0,500).map(x=>`<tr><td>${esc(x.key)}</td><td>${esc(x.summary)}</td><td>${esc(x.developer)}</td><td>${esc(x.requester)}</td><td><span class="pill ${resolved(x.status)?'good':/progress/i.test(x.status)?'warn':''}">${esc(x.status)}</span></td><td>${esc(x.priority)}</td><td>${esc(x.createdRaw)}</td><td>${esc(x.request)}</td><td>${esc(x.resolutionTime)}</td><td>${esc(x.department)}</td></tr>`).join('')}
+}
+['developer','status','priority','request','from','to','search'].forEach(id=>$(id).addEventListener('input',render));
+$('file').addEventListener('change',e=>{if(e.target.files[0])setup(e.target.files[0])});$('drop').addEventListener('dragover',e=>{e.preventDefault();$('drop').style.background='#f1f6ff'});$('drop').addEventListener('dragleave',()=>$('drop').style.background='');$('drop').addEventListener('drop',e=>{e.preventDefault();$('drop').style.background='';let f=e.dataTransfer.files[0];if(f&&f.name.toLowerCase().endsWith('.csv'))setup(f);else $('fileInfo').textContent='Please drop a CSV file.'});
+$('resetBtn').onclick=()=>{['developer','status','priority','request'].forEach(id=>$(id).value='');$('search').value='';populateFilters();render()};
+$('exportBtn').onclick=()=>{let a=filtered();download('jira-filtered-tickets.csv',csv(a.map(x=>x.original)))};
+$('cleanBtn').onclick=()=>download('jira-cleaned-data.csv',csv(rows.map(x=>({...x.original,'Normalized Developer':x.developer,'Normalized Requester':x.requester,'Parsed Created Date':x.created?x.created.toISOString():'','Normalized Status Group':resolved(x.status)?'Resolved':/progress/i.test(x.status)?'In Progress':'Unresolved'}))));
+$('qualityBtn').onclick=()=>download('jira-data-quality-issues.csv',csv(quality));
+</script></body></html>
